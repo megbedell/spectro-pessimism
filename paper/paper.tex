@@ -1,0 +1,27 @@
+\documentclass[modern]{aastex61}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[sort&compress]{natbib}
+\usepackage[hang,flushmargin]{footmisc}
+
+% text macros
+\newcommand{\todo}[1]{\textcolor{red}{#1}}  % gotta have \usepackage{xcolor} in main doc or this won't work
+\newcommand{\acronym}[1]{{\small{#1}}}
+\newcommand{\project}[1]{\textsl{#1}}
+
+\setlength{\parindent}{1.4em} % trust in Hogg
+
+\begin{document}\sloppy\sloppypar\raggedbottom\frenchspacing % trust in Hogg
+\graphicspath{ {figures/} }
+\DeclareGraphicsExtensions{.pdf,.eps,.png}
+
+\title{Spectro-pessimism}
+
+\begin{abstract}\noindent
+blah blah blah
+\end{abstract}
+
+\bibliographystyle{apj}
+\bibliography{}%general,myref,inprep}
+
+\end{document}
