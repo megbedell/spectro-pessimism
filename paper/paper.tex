@@ -4,10 +4,25 @@
 \usepackage[sort&compress]{natbib}
 \usepackage[hang,flushmargin]{footmisc}
 
+% units macros
+\newcommand{\unit}[1]{\mathrm{#1}}
+\newcommand{\km}{\unit{km}}
+\newcommand{\m}{\unit{m}}
+\newcommand{\s}{\unit{s}}
+\newcommand{\kms}{\km\,\s^{-1}}
+\newcommand{\ms}{\m\,\s^{-1}}
+\newcommand{\ang}{\text{\normalfont\AA}}
+
+% math macros
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\T}{^{\mathsf{T}}}
+
 % text macros
 \newcommand{\todo}[1]{\textcolor{red}{#1}}  % gotta have \usepackage{xcolor} in main doc or this won't work
 \newcommand{\acronym}[1]{{\small{#1}}}
 \newcommand{\project}[1]{\textsl{#1}}
+\newcommand{\RV}{\acronym{RV}}
+\newcommand{\CRLB}{\acronym{CRLB}}
 
 \setlength{\parindent}{1.4em} % trust in Hogg
 
@@ -15,11 +30,54 @@
 \graphicspath{ {figures/} }
 \DeclareGraphicsExtensions{.pdf,.eps,.png}
 
-\title{Spectro-pessimism}
+\title{Is spectro-perfectionism perfect?}
 
 \begin{abstract}\noindent
-blah blah blah
+Within the exoplanet community, spectrographs and their data reduction pipelines are designed with a primary goal in mind: obtaining the most precise radial velocity (\RV) measurement possible. 
+In some cases, design decisions are made at the instrument level to sacrifice some degree of spectrograph throughput (?) for the sake of being able to extract a reliably calibrated spectrum from the data without losing much of the \RV\ information it encodes. 
+The concept of ``spectro-perfectionism'' (cite) outlines a way to extract spectra without information loss from any reasonable spectrograph design, at least in principle. 
+In this work we test the performances of traditional optimal extraction and of spectro-perfectionism on simulated spectra under a variety of spectrograph conditions. 
+We find that under [x] conditions, spectro-perfectionism is able to extract precise \RV s [at/near the Cram\'er--Rao bound], outperforming optimal extraction [by a factor of...]. 
+However, both methods begin to fail when [x], suggesting a future need for fully two-dimensional \RV\ extraction pipelines.
 \end{abstract}
+
+\section{Introduction}
+
+Background on EPRV instruments and assumptions they make.
+
+Background on optimal extraction and spectro-perfectionism
+
+What we set out to do
+
+\section{Data Generation}
+how the data are generated, what the tunable knobs are, maybe a figure comparing fake data to e.g. MAROON-X test data or HARPS?
+
+details on the time-series spectra we generate
+
+\subsection{Theoretical Information Content}
+since we're generating the data ourselves, it's possible to calculate the \CRLB\ on how much \RV\ information is encoded in the spectrograph images.
+
+\section{Methods}
+\subsection{Optimal Extraction}
+implementation details
+
+\subsection{Spectro-perfectionism}
+implementation details, with some discussion of the trickiest parts (e.g. getting the A matrix right)
+
+\section{Results \& Discussion}
+Here's what we get when we run our two methods on data generated under a variety of conditions.
+
+First we show that under a variety of spectrograph configurations, even ones where optimal extraction fails, spectro-perfectionism performs well.
+
+Then we address the issues with implementing spectro-perfectionism in the real world: insert reasonable levels of noise into the algorithm and see where/how it breaks.
+
+\section{Conclusions}
+
+summarize results: conditions under which spectro-perfectionism is a good option, conditions under which optimal extraction will do, and conditions under which they both break
+
+emphasize that even if both algorithms break, the \RV\ content is still in the 2D spectrograph images! future outlook on 2D modeling to get \RV s WITHOUT extracting a spectrum.
+
+
 
 \bibliographystyle{apj}
 \bibliography{}%general,myref,inprep}
