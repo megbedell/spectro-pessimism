@@ -4,7 +4,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
-code/tracing.c
+*.c
+
+*.hdf
 
 # C extensions
 *.so
@@ -222,7 +224,7 @@ acs-*.bib
 
 # knitr
 *-concordance.tex
-# TODO Comment the next line if you want to keep your tikz graphics files
+# Comment the next line if you want to keep your tikz graphics files
 *.tikz
 *-tikzDictionary
 
@@ -328,3 +330,5 @@ TSWLatexianTemp*
 # expex forward references with \gathertags
 *-tags.tex
 
+#PyCharm stuff
+.idea/*

@@ -4,8 +4,13 @@
 generator.py can be used to simulate a small snippet of a 2D spectrum,
 similar to what an Echelle spectrograph would do.
 
+Required (non-standard) packages
+--------------------------------
+[h5sparse](https://github.com/appier/h5sparse)
+
+
 Example Usage
 -------------
 See "__main__" section of generator.py for an example.
 
-Use ```python setup.py build_ext --inplace``` to compile cython code for a ~10x speedup.
+Use ```python setup.py build_ext --inplace``` to compile cython code for a ~40x speedup.
