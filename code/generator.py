@@ -10,6 +10,9 @@ from scipy.stats import wrapcauchy
 import os
 import urllib
 from astropy.io import fits
+import logging
+import h5py
+
 
 def bin_2d(x, y, xmin=0, xmax=4096, ymin=0, ymax=4096):
     """  Bin XY position into 2d grid and throw away data outside the limits.
@@ -192,7 +195,7 @@ class MaroonX(Spectrograph):
     This spectrograph has a rectangular slit/fiber and a PSF < slit.
     """
     def __init__(self):
-        super().__init__()
+        super().__init__(name='MaroonX')
         self.psf_sig_x = 0.5
         self.psf_sig_y = 0.5
 
@@ -210,7 +213,7 @@ class HARPS(Spectrograph):
 
     """
     def __init__(self):
-        super().__init__()
+        super().__init__(name='HARPS')
         self.psf_sig_x = 0.5
         self.psf_sig_y = 0.5
 
@@ -230,7 +233,7 @@ class iLocater(Spectrograph):
     All 'spread' comes from the PSF distortion.
     """
     def __init__(self):
-        super().__init__()
+        super().__init__(name='iLocator')
         self.psf_sig_x = 0.5
         self.psf_sig_y = 0.5
 
@@ -241,26 +244,63 @@ class iLocater(Spectrograph):
         return np.zeros(N), np.zeros(N)
 
 
-class Spectrum():
-    def __init__(self, min_wl=600., max_wl=600.4):
+class Spectrum:
+    """ A spectral source.
+
+    This class should be subclassed to implement different spectral sources.
+
+    Attributes:
+        wavelength (np.ndarray): randomly drawn wavelength constituting the spectrum
+        min_wl (float): lower wavelength limit [nm] (for normalization purposes)
+        max_wl (float): upper wavelength limit [nm] (for normalization purposes)
+
+    """
+    def __init__(self, min_wl=600., max_wl=600.4, name=''):
+        self.name = name
         self.wavelength = None
         self.min_wl = min_wl
         self.max_wl = max_wl
 
     def draw_wavelength(self, N):
+        """
+        Overwrite this function in child class !
+        Args:
+            N (int): number of wavelength to randomly draw
+
+        Returns:
+
+        """
         raise NotImplementedError()
 
     def apply_rv(self, rv):
+        """ Apply radial velocity shift.
+
+        Applies an RV shift to the formerly drawn wavelength.
+        Args:
+            rv (float): radial velocity shift [m/s]
+
+        Returns:
+            np.ndarray: shifted wavelength
+
+        """
         self.wavelength = apply_rv(self.wavelength, rv)
         return self.wavelength
 
     def bin_to_wavelength(self, wl_vector):
+        """ Bins random wavelength into wavelength vector.
+
+        Args:
+            wl_vector (np.ndarray): wavelength bin edges
+
+        Returns:
+            see np.histogram for details
+        """
         return np.histogram(self.wavelength, wl_vector)
 
 
 class Flat(Spectrum):
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, name='Flat')
 
     def draw_wavelength(self, N):
         self.wavelength = (self.max_wl-self.min_wl)* np.random.random(N) + self.min_wl
@@ -268,8 +308,8 @@ class Flat(Spectrum):
 
 
 class Etalon(Spectrum):
-    def __init__(self, d=10., n=1., theta=0., *args):
-        super().__init__(*args)
+    def __init__(self, d=10., n=1., theta=0., **kwargs):
+        super().__init__(**kwargs, name='Etalon')
         self.d = d
         self.n = n
         self.theta = theta
@@ -287,8 +327,34 @@ class Etalon(Spectrum):
 
 
 class Phoenix(Spectrum):
+    """
+    Phoenix M-dwarf spectra.
+
+             .-'  |
+            / M <\|
+           /dwarf\'
+           |_.- o-o
+           / C  -._)\
+          /',        |
+         |   `-,_,__,'
+         (,,)====[_]=|
+           '.   ____/
+            | -|-|_
+            |____)_)
+
+    This class provides a convenient handling of PHOENIX M-dwarf spectra.
+    For a given set of effective Temperature, log g, metalicity and alpha, it downloads the spectrum from PHOENIX ftp
+    server.
+
+    TODO:
+    * recalculate spectral flux of original fits files to photons !!!!!
+    """
     def __init__(self, t_eff=3600, log_g=5., z=0, alpha=0., **kwargs):
-        super().__init__(**kwargs)
+        self.t_eff = t_eff
+        self.log_g = log_g
+        self.z = z
+        self.alpha = alpha
+        super().__init__(**kwargs, name='phoenix')
         valid_T = [*list(range(2300, 7000, 100)), *list((range(7000, 12200, 200)))]
         valid_g = [*list(np.arange(0, 6, 0.5))]
         valid_z = [*list(np.arange(-4, -2, 1)), *list(np.arange(-2., 1.5, 0.5))]
@@ -346,34 +412,54 @@ class Phoenix(Spectrum):
         return self.wavelength
 
 
+def generate_rv_series(spectrograph, spectrum, radial_velocities, photons_per_spectrum=int(1E7), outfile='test.hdf', bins_for_1d=None):
+    """
+    Function to generate a series of spectra with different radial velocities.
+
+    Args:
+        spectrograph (Spectrograph): spectrograph used for simulation
+        spectrum (Spectrum): spectrum used for simulation
+        radial_velocities (iterable): radial velocities, one spectrum per entry will be generated
+        photons_per_spectrum (int): number of photons per spectrum
+        outfile (string): path to HDF file that contains RV series
+        bins_for_1d (np.ndarray): OPTIONAL, if given, spectrum.wavelength will be binned directly onto that wavelength vector and saved in the file.
+
+    Returns:
+        None
+
+    """
+    with h5py.File(outfile, "w") as h5f:
+        h5f.create_group('2d_spectra')
+        if bins_for_1d is not None:
+            h5f.create_group('1d_spectra')
+        spectrograph_group = h5f.create_group('spectrograph')
+
+        # save all spectrograph attributes (at least all string, int and float values...
+        for attr, value in spectrograph.__dict__.items():
+            if isinstance(value, float) or isinstance(value, str) or isinstance(value, int):
+                spectrograph_group.attrs[attr] = value
+
+        for rv in radial_velocities:
+            logging.debug('Simulating '+str(rv) +' m/s spectrum...')
+            spectrum.draw_wavelength(photons_per_spectrum)
+            img = spectrograph.generate_2d_spectrum(spectrum.apply_rv(rv))
+            dt = h5f['2d_spectra'].create_dataset(str(rv), data=img)
+
+            if bins_for_1d is not None:
+                spec_1d, bins = spectrum.bin_to_wavelength(bins_for_1d)
+                h5f['1d_spectra'].create_dataset(str(rv)+'_wavelength', data=bins)
+                h5f['1d_spectra'].create_dataset(str(rv) + '_spectrum', data=spec_1d)
+
+            # save all spectrum attributes
+            for attr, value in spectrum.__dict__.items():
+                if isinstance(value, float) or isinstance(value, str) or isinstance(value, int):
+                    dt.attrs[attr] = value
+
+
 if __name__ == "__main__":
     import time
     t1 = time.time()
 
-    # total number of photons
-    N = int(1E7)
-
-    es = Etalon()
-    wl = es.draw_wavelength(N)
-
-    spec = MaroonX()
-    img = spec.generate_2d_spectrum(wl)
-    t2 = time.time()
-    print(t2 - t1)
-    plt.figure()
-    plt.imshow(img, origin='lower')
-
-
-    # now lets tilt the slit !
-    # spec.rot = 8./180. * np.pi
-    # img = spec.generate_2d_spectrum(wl)
-
-    # plt.figure()
-    # plt.imshow(img, origin='lower')
-    #
-    # # lets calculate mighty A on a fine wavelength grid (that takes a while...)
-    # A = spec.calc_A(np.linspace(600, 600.4, 1000), int(1E5), 'maroonx.hdf')
-    #
-    # plt.figure()
-    # plt.imshow(A.todense(), origin='lower')
-    plt.show()
+    spectrum = Etalon()
+    spectrograph = MaroonX()
+    generate_rv_series(spectrograph, spectrum, [0., 100., 50.], bins_for_1d=np.linspace(600, 600.4, 1000))
