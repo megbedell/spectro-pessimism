@@ -6,8 +6,6 @@ __pycache__/
 *$py.class
 *.c
 
-*.hdf
-
 # C extensions
 *.so
 

@@ -1,8 +1,8 @@
+import pyximport; pyximport.install()
+from tracing import trace
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.sparse
-import pyximport; pyximport.install()
-from tracing import trace
 from scipy.sparse import coo_matrix, lil_matrix
 import h5sparse
 from scipy.stats import rv_continuous
@@ -182,10 +182,13 @@ class Spectrograph:
         A = coo_matrix((self.img_width*self.img_height, wl_steps), dtype=np.float)
         for i, w in enumerate(wl_vector):
             data = self.generate_2d_spectrum(np.repeat(w, N)).flatten()
-            A += coo_matrix((data / np.sum(data),(np.arange(6000), np.repeat(i, 6000))), shape=(6000, wl_steps))
+            A += coo_matrix((data / np.sum(data),
+                             (np.arange(self.img_width*self.img_height), np.repeat(i, self.img_width*self.img_height))), shape=(self.img_width*self.img_height, wl_steps))
         if path is not None:
             with h5sparse.File(path, "w") as h5f:
                 h5f.create_dataset("A", data=A.tocsc(), format='csc', compression='gzip', compression_opts=6)
+            with h5py.File(path, "a") as h5f:
+                h5f.create_dataset("wavelength", data=wl_vector)
         return A
 
 
@@ -462,4 +465,6 @@ if __name__ == "__main__":
 
     spectrum = Etalon()
     spectrograph = MaroonX()
-    generate_rv_series(spectrograph, spectrum, [0., 100., 50.], bins_for_1d=np.linspace(600, 600.4, 1000))
+    generate_rv_series(spectrograph, spectrum, [0.], photons_per_spectrum=int(1E8), bins_for_1d=np.linspace(600, 600.4, 1000), outfile='etalon.hdf')
+    t2 = time.time()
+    print(t2-t1)
