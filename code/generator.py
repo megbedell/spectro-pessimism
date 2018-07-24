@@ -45,23 +45,21 @@ def bin_2d(x, y, xmin=0, xmax=4096, ymin=0, ymax=4096):
     return grid
 
 
-def generate_slit_xy(N, width=1, height=1):
-    """  Generate uniform distributed XY position within a box
+def generate_slit_xy(N):
+    """  Generate uniform distributed XY position within a unit box
 
     Args:
         N (int):  number of random numbers
-        width (float): width of the box
-        height (float): height of the box
 
     Returns:
         np.ndarray: random XY position
     """
-    x = np.random.random(N) * width
-    y = np.random.random(N) * height
+    x = np.random.random(N)
+    y = np.random.random(N)
     return np.array([x,y])
 
 
-def generate_round_slit_xy(N, diam=1.):
+def generate_round_slit_xy(N):
     """ Generate uniform distributed XY position within a disk
 
     Args:
@@ -71,7 +69,7 @@ def generate_round_slit_xy(N, diam=1.):
     Returns:
         np.ndarray: random XY positions
     """
-    r = np.sqrt(np.random.random(N)) * diam/2.
+    r = np.sqrt(np.random.random(N)) * .5
     phi = np.random.random(N) * np.pi * 2.
     return np.array([r*np.cos(phi), r * np.sin(phi)])
 
@@ -155,12 +153,27 @@ class Spectrograph:
     def generate_2d_spectrum(self, wl_vector):
         N = len(wl_vector)
         xy = self.generate_slit(N)
-        transformed = trace(wl_vector, xy[0], xy[1],self.sx, self.sy, self.rot, self.shear, self.offset_x, self.offset_y,
-                            self.disp_x, self.disp_y, self.wl_center)
+        transformed = trace(wl_vector, xy[0], xy[1], self.sx, self.sy, self.rot, self.shear, self.offset_x,
+                            self.offset_y, self.disp_x, self.disp_y, self.wl_center)
 
         transformed += self.generate_psf_distortion(N)
         img = bin_2d(*transformed, ymax=self.img_height, xmax=self.img_width)
         return img
+
+    def calc_wavelength_vector(self):
+        """
+        Calculates the wavelength vector for given detector (i.e. wavelength of pixel edges).
+        It inverts the 'trace' function and calculates the wavelength at the center of the slit (at coordinate 0.5, 0.5)
+        for both, the edges and the cetners of each pixel.
+
+        Returns: wavelength of pixel boundaries (length is N+1), wavelength of pixel centers (length is N)
+
+        """
+        wl_bins = (np.array(range(self.img_width+1)) - self.offset_x - self.sx*np.cos(self.rot)/2. +
+                self.sy*np.sin(self.rot+self.shear)/2.) / self.disp_x + self.wl_center
+
+        wls = (wl_bins[1:] + wl_bins[:-1]) / 2
+        return wl_bins, wls
 
     def calc_A(self, wl_vector, photons_per_step=1E6, path=None):
         """
@@ -183,7 +196,8 @@ class Spectrograph:
         for i, w in enumerate(wl_vector):
             data = self.generate_2d_spectrum(np.repeat(w, N)).flatten()
             A += coo_matrix((data / np.sum(data),
-                             (np.arange(self.img_width*self.img_height), np.repeat(i, self.img_width*self.img_height))), shape=(self.img_width*self.img_height, wl_steps))
+                             (np.arange(self.img_width*self.img_height), np.repeat(i, self.img_width*self.img_height))),
+                            shape=(self.img_width*self.img_height, wl_steps))
         if path is not None:
             with h5sparse.File(path, "w") as h5f:
                 h5f.create_dataset("A", data=A.tocsc(), format='csc', compression='gzip', compression_opts=6)
@@ -201,9 +215,11 @@ class MaroonX(Spectrograph):
         super().__init__(name='MaroonX')
         self.psf_sig_x = 0.5
         self.psf_sig_y = 0.5
+        self.sx = 3.
+        self.sy = 10.
 
     def generate_slit(self, N):
-        return generate_slit_xy(N, 3, 10)
+        return generate_slit_xy(N)
 
     def generate_psf_distortion(self, N):
         return generate_gaussian_distortion(N, self.psf_sig_x, self.psf_sig_y)
@@ -219,9 +235,11 @@ class HARPS(Spectrograph):
         super().__init__(name='HARPS')
         self.psf_sig_x = 0.5
         self.psf_sig_y = 0.5
+        self.sx = 3
+        self.sy = 3
 
     def generate_slit(self, N):
-        return generate_round_slit_xy(N, 3.)
+        return generate_round_slit_xy(N)
 
     def generate_psf_distortion(self, N):
         return generate_gaussian_distortion(N, self.psf_sig_x, self.psf_sig_y)
@@ -258,7 +276,7 @@ class Spectrum:
         max_wl (float): upper wavelength limit [nm] (for normalization purposes)
 
     """
-    def __init__(self, min_wl=600., max_wl=600.4, name=''):
+    def __init__(self, min_wl=599.8, max_wl=600.42, name=''):
         self.name = name
         self.wavelength = None
         self.min_wl = min_wl
@@ -352,7 +370,7 @@ class Phoenix(Spectrum):
     TODO:
     * recalculate spectral flux of original fits files to photons !!!!!
     """
-    def __init__(self, t_eff=3600, log_g=5., z=0, alpha=0., **kwargs):
+    def __init__(self, t_eff=3600, log_g=5., z=0, alpha=0., data_folder="data", **kwargs):
         self.t_eff = t_eff
         self.log_g = log_g
         self.z = z
@@ -364,22 +382,22 @@ class Phoenix(Spectrum):
         valid_a = [*list(np.arange(-.2, 1.4, 0.2))]
 
         if t_eff in valid_T and log_g in valid_g and z in valid_z and alpha in valid_a:
-            if not os.path.exists("data/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"):
+            if not os.path.exists(data_folder+"/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"):
                 print("Download Phoenix wavelength file...")
                 url = 'ftp://phoenix.astro.physik.uni-goettingen.de/HiResFITS/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
-                with urllib.request.urlopen(url) as response, open('data/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits', 'wb') as out_file:
+                with urllib.request.urlopen(url) as response, open(data_folder+'/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits', 'wb') as out_file:
                     data = response.read()
                     out_file.write(data)
 
-            self.wl_data = fits.getdata(str('data/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits')) / 10.
+            self.wl_data = fits.getdata(str(data_folder+'/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits')) / 10.
 
             baseurl = 'ftp://phoenix.astro.physik.uni-goettingen.de/' \
                       'HiResFITS/PHOENIX-ACES-AGSS-COND-2011/' \
-                      'Z{0:{1}2.1f}{2}{3}/'.format(z,
+                      'Z-{0:{1}2.1f}{2}{3}/'.format(z,
                                                    '+' if z>0 else '-',
                                                    '' if alpha==0 else '.Alpha=',
                                                    '' if alpha==0 else '{:+2.2f}'.format(alpha))
-            url = baseurl+'lte{0:05}-{1:2.2f}{2:{3}2.1f}{4}{5}.' \
+            url = baseurl+'lte{0:05}-{1:2.2f}-{2:{3}2.1f}{4}{5}.' \
                           'PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'.format(t_eff,
                                                                           log_g,
                                                                           z,
@@ -387,20 +405,21 @@ class Phoenix(Spectrum):
                                                                           '' if alpha==0 else '.Alpha=',
                                                                           '' if alpha==0 else '{:+2.2f}'.format(alpha))
 
-            filename = 'data/'+ url.split("/")[-1]
+            filename = data_folder+'/'+ url.split("/")[-1]
 
             if not os.path.exists(filename):
                 print("Download Phoenix spectrum...")
                 with urllib.request.urlopen(url) as response, open(filename, 'wb') as out_file:
+                    print('Trying to download:' + url)
                     data = response.read()
                     out_file.write(data)
 
             self.spectrum_data = fits.getdata(filename)
 
-            lowWl = np.where(self.wl_data > self.min_wl)[0][0]
-            highWl = np.where(self.wl_data > self.max_wl)[0][0]
-            self.spectrum_data = self.spectrum_data[lowWl:highWl]
-            self.wl_data = self.wl_data[lowWl:highWl]
+            low_wl = np.where(self.wl_data > self.min_wl)[0][0]
+            high_wl = np.where(self.wl_data > self.max_wl)[0][0]
+            self.spectrum_data = self.spectrum_data[low_wl:high_wl]
+            self.wl_data = self.wl_data[low_wl:high_wl]
         else:
             print("Valid values are:")
             print("T: ", *valid_T )
