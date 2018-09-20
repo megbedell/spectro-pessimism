@@ -12,6 +12,33 @@ import urllib
 from astropy.io import fits
 import logging
 import h5py
+import sys
+
+logging.basicConfig( level=logging.DEBUG,
+     format= '[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
+     datefmt='%H:%M:%S')
+
+
+def draw_progress_bar(percent, barLen = 20):
+    """
+    Print progress bar to console.
+
+    Args:
+        percent (float): current value in percent
+        barLen (int): length of bar in characters
+
+    Returns:
+
+    """
+    sys.stdout.write("\r")
+    progress = ""
+    for i in range(barLen):
+        if i < int(barLen * percent):
+            progress += "="
+        else:
+            progress += " "
+    sys.stdout.write("[ %s ] %.2f%%" % (progress, percent * 100))
+    sys.stdout.flush()
 
 
 def bin_2d(x, y, xmin=0, xmax=4096, ymin=0, ymax=4096):
@@ -164,7 +191,7 @@ class Spectrograph:
         """
         Calculates the wavelength vector for given detector (i.e. wavelength of pixel edges).
         It inverts the 'trace' function and calculates the wavelength at the center of the slit (at coordinate 0.5, 0.5)
-        for both, the edges and the cetners of each pixel.
+        for both, the edges and the centers of each pixel.
 
         Returns: wavelength of pixel boundaries (length is N+1), wavelength of pixel centers (length is N)
 
@@ -194,6 +221,7 @@ class Spectrograph:
         wl_steps = len(wl_vector)
         A = coo_matrix((self.img_width*self.img_height, wl_steps), dtype=np.float)
         for i, w in enumerate(wl_vector):
+            draw_progress_bar(float(i) / wl_steps, 50)
             data = self.generate_2d_spectrum(np.repeat(w, N)).flatten()
             A += coo_matrix((data / np.sum(data),
                              (np.arange(self.img_width*self.img_height), np.repeat(i, self.img_width*self.img_height))),
@@ -434,7 +462,7 @@ class Phoenix(Spectrum):
         return self.wavelength
 
 
-def generate_rv_series(spectrograph, spectrum, radial_velocities, photons_per_spectrum=int(1E7), outfile='test.hdf', bins_for_1d=None):
+def generate_rv_series(spectrograph, spectrum, radial_velocities, photons_per_spectrum=int(1E7), outfile="test.hdf", bins_for_1d=None):
     """
     Function to generate a series of spectra with different radial velocities.
 
@@ -481,7 +509,6 @@ def generate_rv_series(spectrograph, spectrum, radial_velocities, photons_per_sp
 if __name__ == "__main__":
     import time
     t1 = time.time()
-
     spectrum = Etalon()
     spectrograph = MaroonX()
     generate_rv_series(spectrograph, spectrum, [0.], photons_per_spectrum=int(1E8), bins_for_1d=np.linspace(600, 600.4, 1000), outfile='etalon.hdf')

@@ -19,7 +19,7 @@ def trace(np.ndarray[DTYPE_t, ndim=1] wl, np.ndarray[DTYPE_t, ndim=1] x_vec, np.
     assert wl.dtype == DTYPE and y_vec.dtype == DTYPE and x_vec.dtype == DTYPE
     cdef double tx, ty, value, xpos, ypos, m0,m1,m2, m3,m4, m5
 
-    for i in cython.parallel.prange(N, nogil=True, num_threads=4, schedule='static'):
+    for i in cython.parallel.prange(N, nogil=True, num_threads=8, schedule='static'):
         # calculate offsets
         tx = (wl[i] - wl_start) * disp_x + offset_x
         ty = (wl[i] - wl_start) * disp_y + offset_y
